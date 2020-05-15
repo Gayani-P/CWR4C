@@ -1,0 +1,93 @@
+---
+title: "Simple Model Test"
+author: "gp"
+date: "5/14/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+final_data <- simple_model_test
+```
+
+```{r}
+final_data<-final_data%>%mutate(weight=0)
+num_studies<-final_data%>%count()
+```
+
+
+
+```{r}
+#meta-analysis weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]=="meta-analysis")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=8}
+  if((final_data$StudyType[x]=="meta-analysis")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-8}
+  if((final_data$StudyType[x]=="meta-analysis")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-4}
+  if((final_data$StudyType[x]=="meta-analysis")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#clinical trial weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "clinical trial")&(final_data$predicted[x]=="Effective")) {final_data$weight[x]=7}
+  if((final_data$StudyType[x]== "clinical trial")&(final_data$predicted[x]=="Detrimental")) {final_data$weight[x]=-7}
+  if((final_data$StudyType[x]== "clinical trial")&(final_data$predicted[x]== "Inconclusive")) {final_data$weight[x]=-3.5}
+  if((final_data$StudyType[x]=="clinical trial")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#clinical observational weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "clinical observational")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=6}
+  if((final_data$StudyType[x]== "clinical observational")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-6}
+  if((final_data$StudyType[x]== "clinical observational")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-3}
+  if((final_data$StudyType[x]=="clinical observational")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#meta-synthesis weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "meta-synthesis")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=5}
+  if((final_data$StudyType[x]== "meta-synthesis")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-5}
+  if((final_data$StudyType[x]== "meta-synthesis")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-2.5}
+  if((final_data$StudyType[x]=="meta-synthesis")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#clinical case report weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "clinical case report")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=4}
+  if((final_data$StudyType[x]== "clinical case report")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-4}
+  if((final_data$StudyType[x]== "clinical case report")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-2} 
+  if((final_data$StudyType[x]== "clinical case report")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#preclinical in vivo weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "preclinical in vivo")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=3}
+  if((final_data$StudyType[x]== "preclinical in vivo")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-3}
+  if((final_data$StudyType[x]== "preclinical in vivo")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-1.5}
+  if((final_data$StudyType[x]== "preclinical in vivo")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#preclinical in vitro weights
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "preclinical in vitro")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=2}
+  if((final_data$StudyType[x]== "preclinical in vitro")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-2}
+  if((final_data$StudyType[x]== "preclinical in vitro")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-1}
+  if((final_data$StudyType[x]== "preclinical in vitro")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#other weights 
+
+for(x in 1:num_studies$n)
+  if((final_data$StudyType[x]== "other")&(final_data$predicted[x]=="Effective")){final_data$weight[x]=0}
+  if((final_data$StudyType[x]== "other")&(final_data$predicted[x]=="Detrimental")){final_data$weight[x]=0}
+  if((final_data$StudyType[x]== "other")&(final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=0}
+  if((final_data$StudyType[x]== "other")&(final_data$predicted[x]=="No Effect")){final_data$weight[x]=0}
+
+#ranked list
+
+ranked_list<-final_data%>%group_by(Drug_x,Cancer)%>%
+        summarize(score=sum(weight),count=n())%>%
+        arrange(desc(score))
+
+```
+

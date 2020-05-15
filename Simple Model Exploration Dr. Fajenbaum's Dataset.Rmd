@@ -1,0 +1,78 @@
+---
+title: "Simple Model Exploration Dr. Fajenbaum's Dataset"
+author: "gp"
+date: "4/14/2020"
+output: html_document
+---
+
+```{r}
+#loading data and libraries
+library(tidyverse)
+library(readxl)
+covid19_simple_model_exploration <- read_excel("~/CWR4C/covid-19 exploration 1.xlsx")
+
+
+#creating a column for weights in simple_data dataset
+simple_data<-covid19_simple_model_exploration%>%mutate(weight=0)
+
+#mapping terms used in Dr. Fajenbaum's dataset for studytype to our labels
+for(x in 1: num_studies$total){
+  if (simple_data$studytype[x]=="research study"){simple_data$studytype[x]= "clinical observational"}
+  if (simple_data$studytype[x]=="review study"){simple_data$studytype[x]= "clinical observational"}
+  if (simple_data$studytype[x]=="case report"){simple_data$studytype[x]= "clinical case report"}
+  if (simple_data$studytype[x]=="case series"){simple_data$studytype[x]= "clinical case report"}
+  if (simple_data$studytype[x]=="case study"){simple_data$studytype[x]= "clinical case report"}
+}
+
+
+#tells number of studies per study type
+num_studies<-simple_data%>%
+            group_by(studytype)%>%summarize(count=n())%>%
+            mutate(total=sum(count))
+num_studies
+
+#associating weights for each studytype when it's (effective(Y)/not effective(N)/not recorded(NR))
+
+for(x in 1:num_studies$total){
+  if((simple_data$studytype[x]== "meta-analysis") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=8}
+  if((simple_data$studytype[x]== "meta-analysis") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-8}
+  if((simple_data$studytype[x]== "meta-analysis") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0}
+  
+  if((simple_data$studytype[x]== "clinical trial") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=7}
+  if((simple_data$studytype[x]== "clinical trial") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-7}
+  if((simple_data$studytype[x]== "clinical trial") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0}
+  
+  if((simple_data$studytype[x]== "clinical observational") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=6}
+  if((simple_data$studytype[x]== "clinical observational") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-6}
+  if((simple_data$studytype[x]== "clinical observational") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0}
+
+  
+  if((simple_data$studytype[x]== "meta-synthesis") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=5}
+  if((simple_data$studytype[x]== "meta-synthesis") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-5}
+  if((simple_data$studytype[x]== "meta-synthesis") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0}
+
+ 
+  if((simple_data$studytype[x]== "clinical case report") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=4}
+  if((simple_data$studytype[x]== "clinical case report") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-4}
+  if((simple_data$studytype[x]== "clinical case report") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0} 
+  
+  
+  if((simple_data$studytype[x]== "preclinical in vivo") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=3}
+  if((simple_data$studytype[x]== "preclinical in vivo") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-3}
+  if((simple_data$studytype[x]== "preclinical in vivo") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0}
+
+  
+  if((simple_data$studytype[x]== "preclinical in vitro") & (simple_data$effective[x]=="Y")){simple_data$weight[x]=2}
+  if((simple_data$studytype[x]== "preclinical in vitro") & (simple_data$effective[x]=="N")){simple_data$weight[x]=-2}
+  if((simple_data$studytype[x]== "preclinical in vitro") & (simple_data$effective[x]=="NR")){simple_data$weight[x]=0}
+   }
+
+#didn't use else statement because default weight is 0
+
+
+#giving ranked list of drugs based on score
+scores<-simple_data%>%group_by(drug)%>%
+        summarize(score=sum(weight))%>%
+        arrange(desc(score))
+scores
+```

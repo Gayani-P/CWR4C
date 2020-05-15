@@ -1,0 +1,311 @@
+---
+title: "Simple Model Exploration 2"
+author: "gp"
+date: "5/6/2020"
+output: html_document
+---
+
+###CLEANING DATA###
+
+
+Libraries + Data
+```{r}
+library(tidyverse)
+library(readxl)
+data<-simple_cleaning_506%>%
+  select(drug_x, pmid, predicted, detrimental_probability, effective_probability, inconclusive_probability, noeffect_probability, disease, disease_cleaned, studytype1,studytype2, studytype3, studytype4, studytype5, studytype6, studytype7)
+```
+
+What are the unique studytypes listed in the data for studytype1?
+```{r}
+unique(data$studytype1)
+```
+Study Types1 Mapped to Terms in CWR4C Workflow: 
+
+journal article---------------No MAP
+comparative study-------------clinical trial
+controlled clinical trial-----clinical trial
+letter------------------------No MAP
+case reports-------------------clinical case report
+clinical trial----------------clinical trial
+english abstract--------------NO MAP
+evaluation study--------------No MAP
+
+CWR4C Studytypes:
+
+meta-analysis
+clinical trial
+clinical observational
+meta-synthesis
+clinical case report
+preclinical in vivo
+preclinical in vitro
+other
+
+Mapping studytypes1 in data with a match to CWR4C Studytypes: 
+```{r}
+for(x in 1: count(data)$n){
+  if (data$studytype1[x]=="comparative study")
+    {data$studytype1[x]= "clinical trial"}
+  if (data$studytype1[x]=="controlled clinical trial")
+    {data$studytype1[x]= "clinical trial"}
+  if (data$studytype1[x]=="case reports")
+    {data$studytype1[x]="clinical case report"}
+}
+```
+
+Finding all studies in the data with mapped terms for studytype1:
+```{r}
+mapped<-data%>%
+  filter(studytype1=="clinical trial"|studytype1=="clinical case report")
+```
+
+Finding all studies in the data without mapped terms for studytype1
+```{r}
+not_mapped<-data%>%
+  filter(studytype1!="clinical trial")%>%
+  filter(studytype1!="clinical case report")
+unique(not_mapped$studytype1)
+```
+
+Assumption: 
+changing studies where studytye 1 = "journal article" (and it has no other label in studytype2) to "preclinical in vitro"
+```{r}
+journal_nolabel<-not_mapped%>%
+  filter(studytype1=="journal article"& is.na(studytype2))
+
+for(x in 1: count(journal_nolabel)$n){
+  if (journal_nolabel$studytype1[x]=="journal article")
+  {journal_nolabel$studytype1[x]= "preclinical in vitro"}
+}
+```
+
+combining mapped and journal_nolabel subdatasets()
+```{r}
+final_data<-rbind(mapped, journal_nolabel)
+```
+
+Finding studies labled as a journal article with a second label(studytype2 not empty)
+Seeing the unique studytypes in studytype2
+```{r}
+journal_studytype2<-not_mapped%>%filter(studytype1=="journal article"&!is.na(studytype2))
+
+unique(journal_studytype2$studytype2)
+```
+Journal-Study Types2 Mapped to Terms in CWR4C Workflow: 
+
+research support--------------------No MAP
+randomized controlled trial---------clinical trial
+observational study-----------------clinical observational
+multicenter study-------------------clinical trial
+
+
+CWR4C Studytypes:
+
+meta-analysis
+clinical trial
+clinical observational
+meta-synthesis
+clinical case report
+preclinical in vivo
+preclinical in vitro
+other
+
+Mapping studytypes1 in data with a match to CWR4C Studytypes:
+```{r}
+for(x in 1:count(journal_studytype2)$n){
+  if (journal_studytype2$studytype2[x]=="randomized controlled trial")
+    {journal_studytype2$studytype1[x]= "clinical trial"}
+  if (journal_studytype2$studytype2[x]=="observational study")
+    {journal_studytype2$studytype1[x]= "clinical observational"}
+  if (journal_studytype2$studytype2[x]=="multicenter study")
+    {journal_studytype2$studytype1[x]=="clinical trial"}
+}
+```
+Finding all studies in the data with mapped terms for studytype2 onto studytype 1 column:
+
+```{r}
+mapped2<-journal_studytype2%>%
+  filter(studytype2=="clinical trial"|studytype1=="clinical observational")
+```
+
+combining mapped2 articles to final_data
+```{r}
+rbind(final_data,mapped2)
+```
+
+
+
+
+Finding all studies in the data without mapped terms for studytype2
+```{r}
+not_mapped2<-journal_studytype2%>%
+  filter(studytype2!="randomized controlled trial")%>%
+  filter(studytype2!="observational study")%>%
+  filter(studytype2!="multicenter study")
+unique(not_mapped2$studytype2)
+```
+Finding the studies where studytype1=journal article, studytype2 is research support and studytype 3 is NOT empty
+```{r}
+journal_research_studytype3<-not_mapped2%>%filter(!is.na(studytype3))
+unique(journal_research_studytype3$studytype4)
+```
+
+```{r}
+
+letter<-not_mapped%>%filter(studytype1=="letter")
+english_abstract<-not_mapped%>%filter(studytype1=="english abstract")
+evaluation_study<-not_mapped%>%filter(studytype1=="evaluation study")
+
+other<-rbind(letter,english_abstract,evaluation_study)
+other
+```
+manually searched through all studytype columns for the "other" not mapped studytypes for studytype1(letter, english abstract, evaluation study)-only the one study as a letter needed to be mapped:
+```{r}
+map_letter<-data%>%filter(studytype1=="letter")%>%mutate(studytype1="clinical trial")
+map_letter
+```
+Add map_letter to final_data
+```{r}
+rbind(map_letter, final_data)
+```
+final_data is smaller than original data because studies that were labled as journal article-research support-NA were ignored 
+
+###SCORING MODEL###
+
+```{r}
+final_data<-final_data%>%mutate(weight=0)
+num_studies<-final_data%>%count()
+
+for(x in 1:num_studies$n){
+  if((final_data$studytype1[x] == "meta-analysis") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=8}
+  if((final_data$studytype1[x]== "meta-analysis") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-8}
+  if((final_data$studytype1[x]== "meta-analysis") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-4}
+  
+  if((final_data$studytype1[x]== "clinical trial") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=7}
+  if((final_data$studytype1[x]== "clinical trial") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-7}
+  if((final_data$studytype1[x]== "clinical trial") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-3.5}
+  
+  if((final_data$studytype1[x]== "clinical observational") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=6}
+  if((final_data$studytype1[x]== "clinical observational") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-6}
+  if((final_data$studytype1[x]== "clinical observational") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-3}
+  
+  if((final_data$studytype1[x]== "meta-synthesis") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=5}
+  if((final_data$studytype1[x]== "meta-synthesis") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-5}
+  if((final_data$studytype1[x]== "meta-synthesis") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-2.5}
+
+  if((final_data$studytype1[x]== "clinical case report") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=4}
+  if((final_data$studytype1[x]== "clinical case report") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-4}
+  if((final_data$studytype1[x]== "clinical case report") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-2} 
+  
+  if((final_data$studytype1[x]== "preclinical in vivo") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=3}
+  if((final_data$studytype1[x]== "preclinical in vivo") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-3}
+  if((final_data$studytype1[x]== "preclinical in vivo") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-1.5}
+  
+  if((final_data$studytype1[x]== "preclinical in vitro") & (final_data$predicted[x]=="Effective")){final_data$weight[x]=2}
+  if((final_data$studytype1[x]== "preclinical in vitro") & (final_data$predicted[x]=="Detrimental")){final_data$weight[x]=-2}
+  if((final_data$studytype1[x]== "preclinical in vitro") & (final_data$predicted[x]=="Inconclusive")){final_data$weight[x]=-1}
+}
+
+scores<-final_data%>%group_by(drug_x,disease_cleaned)%>%
+        summarize(score=sum(weight),count=n())%>%
+        arrange(desc(score))
+scores
+
+```
+***SCORING MODEL DRUG ONLY***
+```{r}
+final_data<-final_data%>%mutate(weight=0)
+
+for(x in 1:num_studies$n){
+  if(final_data$predicted[x] == "Effective"){final_data$weight[x]=10}
+  if(final_data$predicted[x] == "Detrimental"){final_data$weight[x]=-10}
+  if(final_data$predicted[x] == "Inconclusive"){final_data$weight[x]=-5}
+}
+
+scores<-final_data%>%group_by(drug_x)%>%
+        summarize(score=sum(weight))%>%
+        arrange(desc(score))
+scores
+  
+```
+Number of Studies per drug
+
+```{r}
+num_studies_drug<-final_data%>%group_by(drug_x)%>%count()
+num_studies_drug
+```
+LOOKING AT STUDIES LABELED "INCONCLUSIVE" 
+```{r}
+final_data<-final_data%>%mutate(ie=0,id=0,ine=0,min_difference=0, check=0)
+
+inconclusive<-final_data%>%filter(predicted =="Inconclusive")%>%
+  mutate(ie=inconclusive_probability-effective_probability, 
+         id = inconclusive_probability-detrimental_probability,
+         ine= inconclusive_probability-noeffect_probability)
+inconclusive<-inconclusive%>%
+  mutate(min_difference=apply(X=inconclusive[18:20], MARGIN=1, FUN=min))%>%
+  mutate(check=min_difference==ie)
+
+check<-inconclusive%>%filter(check==FALSE)
+
+not_inconclusive<-final_data%>%filter(predicted!="Inconclusive")
+changed_inconclusive<-inconclusive%>%filter(min_difference<=0.15)%>%
+  mutate(predicted="Effective")
+not_changed_inconclusive<-inconclusive%>%filter(min_difference>0.15)
+
+final_data2<-rbind(not_inconclusive,changed_inconclusive,not_changed_inconclusive)
+
+
+
+final_data2<-final_data2%>%mutate(weight=0)
+num_studies2<-final_data2%>%count()
+
+for(x in 1:num_studies2$n){
+  if((final_data2$studytype1[x] == "meta-analysis") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=8}
+  if((final_data2$studytype1[x]== "meta-analysis") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-8}
+  if((final_data2$studytype1[x]== "meta-analysis") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-4}
+  
+  if((final_data2$studytype1[x]== "clinical trial") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=7}
+  if((final_data2$studytype1[x]== "clinical trial") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-7}
+  if((final_data2$studytype1[x]== "clinical trial") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-3.5}
+  
+  if((final_data2$studytype1[x]== "clinical observational") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=6}
+  if((final_data2$studytype1[x]== "clinical observational") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-6}
+  if((final_data2$studytype1[x]== "clinical observational") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-3}
+  
+  if((final_data2$studytype1[x]== "meta-synthesis") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=5}
+  if((final_data2$studytype1[x]== "meta-synthesis") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-5}
+  if((final_data2$studytype1[x]== "meta-synthesis") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-2.5}
+
+  if((final_data2$studytype1[x]== "clinical case report") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=4}
+  if((final_data2$studytype1[x]== "clinical case report") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-4}
+  if((final_data2$studytype1[x]== "clinical case report") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-2} 
+  
+  if((final_data2$studytype1[x]== "preclinical in vivo") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=3}
+  if((final_data2$studytype1[x]== "preclinical in vivo") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-3}
+  if((final_data2$studytype1[x]== "preclinical in vivo") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-1.5}
+  
+  if((final_data2$studytype1[x]== "preclinical in vitro") & (final_data2$predicted[x]=="Effective")){final_data2$weight[x]=2}
+  if((final_data2$studytype1[x]== "preclinical in vitro") & (final_data2$predicted[x]=="Detrimental")){final_data2$weight[x]=-2}
+  if((final_data2$studytype1[x]== "preclinical in vitro") & (final_data2$predicted[x]=="Inconclusive")){final_data2$weight[x]=-1}
+}
+
+scores2<-final_data2%>%group_by(drug_x,disease_cleaned)%>%
+        summarize(score=sum(weight),count=n())%>%
+        arrange(desc(score))
+scores2
+
+#low count exploration
+
+scores_count<-scores2%>%mutate(score_count=score/count)%>%
+              arrange(desc(score_count))
+scores_count
+```
+```{r}
+plot<-ggplot(data=scores_count)+geom_point(aes(x=count, y=score_count))
+plot
+
+
+```
+
